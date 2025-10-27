@@ -167,12 +167,8 @@ Once seeded, you can immediately:
 
 The test suite uses a dedicated test database defined in `.env.testing`.
 
-Before running the tests for the first time, create the test database inside the PostgreSQL container:
-```bash
-docker compose exec csv_db psql -U postgres -c "CREATE DATABASE csv_test;"
-```
-
-Then run migrations for the test environment:
+Before running the tests for the first time run migrations for the test environment as well:
+ - Select **yes** when asked whether to create a new database
 ```bash
 docker compose exec app php artisan migrate --env=testing
 ```
