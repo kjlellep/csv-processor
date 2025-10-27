@@ -1,0 +1,4 @@
+*
+!examples/
+!examples/*.csv
+!.gitignore

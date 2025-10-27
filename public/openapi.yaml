@@ -1,0 +1,481 @@
+openapi: 3.0.3
+info:
+  title: CSV Processor API
+  version: "1.0.0"
+  description: Vendor-configurable CSV processing with stored results and CSV export.
+servers:
+  - url: /
+tags:
+  - name: Vendors
+  - name: Rules
+  - name: Inventory
+  - name: Export
+paths:
+  /api/vendors:
+    get:
+      tags: [Vendors]
+      summary: List vendors
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+    post:
+      tags: [Vendors]
+      summary: Create vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorCreate" }
+            examples:
+              basicVendor: { $ref: "#/components/examples/VendorCreateBasic" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+
+  /api/vendors/{vendor}:
+    parameters:
+      - name: vendor
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Vendors]
+      summary: Get vendor (with rules)
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorDetail" }
+    put:
+      tags: [Vendors]
+      summary: Update vendor
+      description: Update vendor settings. Send only the fields that should change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorUpdate" }
+            examples:
+              renameVendor: { $ref: "#/components/examples/VendorUpdateRename" }
+              adjustColumns: { $ref: "#/components/examples/VendorUpdateColumns" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Vendor" }
+    delete:
+      tags: [Vendors]
+      summary: Delete vendor
+      responses:
+        "204": { description: Deleted }
+
+  /api/vendors/{vendor}/rules:
+    parameters:
+      - name: vendor
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Rules]
+      summary: List rules
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VendorRule" }
+    post:
+      tags: [Rules]
+      summary: Create rule
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorRuleCreate" }
+            examples:
+              multiplyPrice: { $ref: "#/components/examples/VendorRuleCreateMultiply" }
+              regexCleanup: { $ref: "#/components/examples/VendorRuleCreateRegex" }
+              removeColumn: { $ref: "#/components/examples/VendorRuleCreateRemove" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorRule" }
+
+  /api/vendors/{vendor}/rules/{rule}:
+    parameters:
+      - name: vendor
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: rule
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    put:
+      tags: [Rules]
+      summary: Update rule
+      description: Update a rule. Send only the fields that should change.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/VendorRuleUpdate" }
+            examples:
+              disableRule: { $ref: "#/components/examples/VendorRuleUpdateDisable" }
+              tweakMultiplier: { $ref: "#/components/examples/VendorRuleUpdateMultiply" }
+              updateRegex: { $ref: "#/components/examples/VendorRuleUpdateRegex" }
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/VendorRule" }
+    delete:
+      tags: [Rules]
+      summary: Delete rule
+      responses:
+        "204": { description: Deleted }
+
+  /api/vendors/{vendor}/rules/reorder:
+    parameters:
+      - name: vendor
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Rules]
+      summary: Reorder rules
+      description: >
+        Reorder all rules for the vendor by supplying either a full ordered list
+        of rule IDs (`ids`) **or** explicit `id`/`position` pairs (`items`).
+        The first ID in `ids` will get the lowest position (e.g. 0 or 1 depending
+        on your implementation).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RuleReorderRequest" }
+            examples:
+              byIds: { $ref: "#/components/examples/RuleReorderIds" }
+              byPositions: { $ref: "#/components/examples/RuleReorderPositions" }
+      responses:
+        "200":
+          description: Updated rules in their new order
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/VendorRule" }
+
+  /api/vendors/{vendor}/inventory:
+    post:
+      tags: [Inventory]
+      summary: Upload vendor inventory CSV and process
+      description: >
+        Upload a vendor's product or stock feed as a CSV file.
+        The file is parsed according to the vendor's mapping and rules,
+        processed, and results stored in the database.
+      parameters:
+        - name: vendor
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "201":
+          description: Processed statistics
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/UploadStats" }
+
+  /api/vendors/{vendor}/export:
+    parameters:
+      - name: vendor
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+      - name: upload_id
+        in: query
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Export]
+      summary: Export processed rows as CSV
+      responses:
+        "200":
+          description: CSV stream
+          content:
+            text/csv:
+              schema:
+                type: string
+                format: binary
+
+components:
+  schemas:
+    VendorAttributes:
+      type: object
+      properties:
+        name: { type: string }
+        export_csv: { type: boolean, default: true }
+        mappings:
+          type: object
+          additionalProperties: { type: string }
+          example: { ProductName: Title, Quantity: Qty, Price: PriceEUR, SKU: Code }
+        export_columns:
+          type: array
+          items:
+            type: string
+            enum: [ProductName, Quantity, Price, SKU]
+          example: [ProductName, Quantity, Price, SKU]
+        csv_delimiter: { type: string, example: "," }
+        csv_enclosure: { type: string, example: "\"" }
+        csv_escape: { type: string, example: "\\" }
+        has_header: { type: boolean, default: true }
+      description: Core vendor properties shared across create/update operations.
+
+    VendorCreate:
+      allOf:
+        - $ref: "#/components/schemas/VendorAttributes"
+      required: [name, mappings, export_columns]
+      description: Payload for creating a vendor.
+    VendorUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VendorAttributes"
+      description: Payload for updating a vendor. All fields optional.
+    Vendor:
+      allOf:
+        - $ref: "#/components/schemas/VendorAttributes"
+        - type: object
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+          required: [id]
+      description: Vendor resource model returned by the API.
+
+    VendorRuleAttributes:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [MULTIPLY, REMOVE, REGEX]
+          description: |
+            MULTIPLY – numeric adjustment;
+            REGEX – search/replace text;
+            REMOVE – drop the target column.
+        position: { type: integer, example: 10, minimum: 0 }
+        target:
+          type: string
+          nullable: true
+          enum: [ProductName, Quantity, Price, SKU]
+          description: Canonical column affected by the rule. Can be null for global rules.
+        config:
+          oneOf:
+            - $ref: "#/components/schemas/MultiplyRuleConfig"
+            - $ref: "#/components/schemas/RegexRuleConfig"
+            - $ref: "#/components/schemas/RemoveRuleConfig"
+          description: Settings applied when the rule runs. Match the chosen `type`.
+          nullable: true
+        enabled: { type: boolean, default: true }
+      description: Fields shared by rule create/update operations.
+    VendorRuleCreate:
+      allOf:
+        - $ref: "#/components/schemas/VendorRuleAttributes"
+      required: [type]
+      description: Payload for creating a rule. `type` is required; other fields optional.
+    VendorRuleUpdate:
+      allOf:
+        - $ref: "#/components/schemas/VendorRuleAttributes"
+      description: Payload for updating a rule. All fields optional.
+    VendorRule:
+      allOf:
+        - $ref: "#/components/schemas/VendorRuleAttributes"
+        - type: object
+          properties:
+            id: { type: string, format: uuid, readOnly: true }
+            vendor_id: { type: string, format: uuid, readOnly: true }
+          required: [id, vendor_id]
+      description: Rule resource model returned by the API.
+
+    MultiplyRuleConfig:
+      type: object
+      properties:
+        factor:
+          type: number
+          format: float
+          example: 1.24
+          description: Multiplier applied to numeric values.
+        scale:
+          type: integer
+          minimum: 0
+          example: 2
+          description: Decimal precision to keep after multiplication.
+        round:
+          type: string
+          enum: [half_up, half_down, half_even]
+          default: half_up
+          description: Rounding strategy used after scaling.
+      description: Configuration for MULTIPLY rules.
+    RegexRuleConfig:
+      type: object
+      properties:
+        pattern:
+          type: string
+          example: '(\d+)\s*pcs'
+          description: PCRE pattern without delimiters.
+        replacement:
+          type: string
+          example: '$1'
+          description: Replacement string, supports backreferences.
+        flags:
+          type: string
+          example: 'i'
+          description: Optional PCRE flags such as `i` or `u`.
+      description: Configuration for REGEX rules.
+    RemoveRuleConfig:
+      type: object
+      description: No options are required to remove a column.
+    UploadStats:
+      type: object
+      properties:
+        upload_id: { type: string, format: uuid }
+        vendor_id: { type: string, format: uuid }
+        filename: { type: string }
+        rows_total: { type: integer }
+        rows_valid: { type: integer }
+        rows_skipped: { type: integer }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              row: { type: integer }
+              message: { type: string }
+
+    VendorDetail:
+      allOf:
+        - $ref: "#/components/schemas/Vendor"
+        - type: object
+          properties:
+            rules:
+              type: array
+              items: { $ref: "#/components/schemas/VendorRule" }
+          required: [rules]
+      description: Vendor with its rules as returned by GET /api/vendors/{vendor}.
+
+    RuleReorderRequest:
+      type: object
+      description: >
+        Provide either `ids` (the complete ordered list of rule IDs) **or**
+        `items` (explicit positions). Only one form is required.
+      properties:
+        ids:
+          type: array
+          items: { type: string, format: uuid }
+          description: Complete list of rule IDs in the desired order.
+        items:
+          type: array
+          description: Explicit positions for rules.
+          items:
+            type: object
+            required: [id, position]
+            properties:
+              id: { type: string, format: uuid }
+              position: { type: integer, minimum: 0 }
+      oneOf:
+        - required: [ids]
+        - required: [items]
+
+  examples:
+    VendorCreateBasic:
+      summary: Minimal vendor definition
+      value:
+        name: Euro Parts
+        mappings:
+          ProductName: Title
+          Quantity: Qty
+          Price: PriceEUR
+          SKU: Code
+        export_columns: [ProductName, Quantity, Price, SKU]
+        csv_delimiter: ","
+        csv_enclosure: "\""
+        has_header: true
+    VendorUpdateRename:
+      summary: Rename vendor
+      value:
+        name: Euro Parts GmbH
+    VendorUpdateColumns:
+      summary: Adjust export columns
+      value:
+        export_columns: [ProductName, Price, SKU]
+    VendorRuleCreateMultiply:
+      summary: Multiply quantity by 1.1
+      value:
+        type: MULTIPLY
+        target: Quantity
+        config:
+          factor: 1.1
+          scale: 0
+          round: half_up
+        enabled: true
+    VendorRuleCreateRegex:
+      summary: Strip "pcs" suffix from quantity
+      value:
+        type: REGEX
+        target: Quantity
+        config:
+          pattern: '(\d+)\s*pcs'
+          replacement: '$1'
+          flags: 'i'
+    VendorRuleCreateRemove:
+      summary: Remove vendor-specific SKU column
+      value:
+        type: REMOVE
+        target: SKU
+    VendorRuleUpdateDisable:
+      summary: Disable an existing rule
+      value:
+        enabled: false
+    VendorRuleUpdateMultiply:
+      summary: Increase multiplier precision
+      value:
+        config:
+          scale: 3
+    VendorRuleUpdateRegex:
+      summary: Update regex replacement
+      value:
+        config:
+          replacement: '$1 units'
+    RuleReorderIds:
+      summary: Reorder by IDs (top-to-bottom)
+      value:
+        ids:
+          - "019a20fa-0cbc-7116-b688-ff0736b8f379"
+          - "019a20fa-0cc2-723e-9b2f-6d2be2e1d089"
+          - "019a20fa-0cd3-7344-8f0a-1a2b3c4d5e6f"
+    RuleReorderPositions:
+      summary: Reorder by explicit positions
+      value:
+        items:
+          - { id: "019a20fa-0cc2-723e-9b2f-6d2be2e1d089", position: 0 }
+          - { id: "019a20fa-0cbc-7116-b688-ff0736b8f379", position: 1 }
+          - { id: "019a20fa-0cd3-7344-8f0a-1a2b3c4d5e6f", position: 2 }

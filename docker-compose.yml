@@ -1,0 +1,39 @@
+services:
+  app:
+    build:
+      context: ./docker/php
+    container_name: csv_app
+    volumes:
+      - ./:/var/www/html
+    working_dir: /var/www/html
+    environment:
+      COMPOSER_ALLOW_SUPERUSER: "1"
+      PHP_OPCACHE_VALIDATE_TIMESTAMPS: "1"
+    depends_on:
+      - db
+
+  web:
+    build:
+      context: ./docker/nginx
+    container_name: csv_web
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html
+    depends_on:
+      - app
+
+  db:
+    image: postgres:16-alpine
+    container_name: csv_db
+    environment:
+      POSTGRES_USER: laravel
+      POSTGRES_PASSWORD: laravel
+      POSTGRES_DB: laravel
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+volumes:
+  dbdata:
